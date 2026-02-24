@@ -1,3 +1,24 @@
+## [0.2.0] - 2026-02-24
+
+### 🚀 Features
+
+- *(cli)* Add config-driven cleanup modes and scan indexing
+
+### 🐛 Bug Fixes
+
+- *(publish)* Trigger from release workflow completion
+
+### 📚 Documentation
+
+- *(readme)* Document quickstart, config, and index benchmarking
+
+### 🧪 Testing
+
+- *(cli)* Add dry-run parity and benchmark/index coverage
+
+### ⚙️ Miscellaneous Tasks
+
+- *(pyproject)* Release version 0.2.0
 ## [0.1.0] - 2026-02-24
 
 ### 🚀 Features
@@ -44,3 +65,4 @@
 - *(repo)* Apply prek formatting updates
 - *(ci)* Split release and publish workflows
 - Update project metadata and lockfile
+- *(release)* Update changelog for v0.1.0
