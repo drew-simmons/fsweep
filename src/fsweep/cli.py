@@ -1,3 +1,5 @@
+"""Command-line interface and cleanup engine for fsweep."""
+
 import os
 import shutil
 from pathlib import Path
@@ -15,12 +17,13 @@ from fsweep.config import TARGET_FOLDERS
 # --- Configuration ---
 app = typer.Typer(help="🚀 Advanced Workspace Cleanup Tool for Developers")
 console = Console()
+BYTE_UNIT_BASE = 1024
 
 
 class FSweepEngine:
     """The core engine for scanning and cleaning developer workspace artifacts."""
 
-    def __init__(self, target_path: Path):
+    def __init__(self, target_path: Path) -> None:
         """Initializes the engine with the path to scan.
 
         Args:
@@ -47,7 +50,8 @@ class FSweepEngine:
             for f in path.rglob("*"):
                 try:
                     # We use lstat() for symlinks to avoid following them to the target.
-                    # This ensures we only count the size of the link itself, not the target.
+                    # This ensures we only count the size of the link itself,
+                    # not the target.
                     if f.is_symlink():
                         total += f.lstat().st_size
                     elif f.is_file():
@@ -91,9 +95,9 @@ class FSweepEngine:
         """
         size = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
-            if size < 1024:
+            if size < BYTE_UNIT_BASE:
                 return f"{size:.2f} {unit}"
-            size /= 1024
+            size /= BYTE_UNIT_BASE
         return f"{size:.2f} TB"
 
     def cleanup(
@@ -103,7 +107,8 @@ class FSweepEngine:
 
         Args:
             dry_run: If True, only simulates deletion.
-            callback: An optional function called with each deleted Path for progress reporting.
+            callback: An optional function called with each deleted Path for
+                progress reporting.
         """
         for item in self.found_items:
             if not dry_run:
@@ -123,8 +128,8 @@ def clean(
     dry_run: bool = typer.Option(
         False, "--dry-run", "-d", help="Simulate cleanup without deleting files"
     ),
-):
-    """Scan and clean developer bloat (node_modules, venv, etc.)"""
+) -> None:
+    """Scan and clean developer bloat (node_modules, venv, etc.)."""
     banner_style = "yellow" if dry_run else "blue"
     banner_text = (
         "[bold yellow]DRY-RUN MODE[/bold yellow] 🔍"
@@ -166,7 +171,10 @@ def clean(
         else "Total Estimated Savings (Simulation):"
     )
     rprint(
-        f"\n[bold]{summary_label}[/bold] [green]{engine.format_size(engine.total_bytes)}[/green]\n"
+        (
+            f"\n[bold]{summary_label}[/bold] "
+            f"[green]{engine.format_size(engine.total_bytes)}[/green]\n"
+        )
     )
 
     # Confirmation Logic (Skipped in dry-run)
@@ -184,8 +192,14 @@ def clean(
             dry_run=dry_run, callback=lambda _: progress.update(task, advance=1)
         )
 
-    success_msg = f"\n[bold green]✅ Successfully recovered {engine.format_size(engine.total_bytes)}![/bold green]"
-    dry_run_msg = f"\n[bold yellow]✨ Dry-run complete. Would have recovered {engine.format_size(engine.total_bytes)}.[/bold yellow]"
+    recovered_size = engine.format_size(engine.total_bytes)
+    success_msg = (
+        f"\n[bold green]✅ Successfully recovered {recovered_size}![/bold green]"
+    )
+    dry_run_msg = (
+        f"\n[bold yellow]✨ Dry-run complete. "
+        f"Would have recovered {recovered_size}.[/bold yellow]"
+    )
     rprint(dry_run_msg if dry_run else success_msg)
 
 
