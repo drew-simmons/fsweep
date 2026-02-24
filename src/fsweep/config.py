@@ -1,3 +1,5 @@
+"""Configuration values for fsweep."""
+
 from typing import Set
 
 TARGET_FOLDERS: Set[str] = {
