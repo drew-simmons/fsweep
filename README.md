@@ -8,41 +8,13 @@ Whether it's a mountain of `node_modules`, a forgotten `venv`, or stale build
 caches, `fsweep` identifies the mess and helps you reclaim your disk space in
 seconds.
 
-## 🚀 Key Features
-
-- **🔍 Intelligent Scanning:** Recursively hunts down common "junk" folders
-  across your projects.
-- **💰 Size Estimation:** Calculates exactly how much space you'll recover
-  before you commit.
-- **📊 Rich Terminal UI:** Presents findings in beautiful, easy-to-read tables
-  thanks to [Rich](https://github.com/Textualize/rich).
-- **🛡️ Safety First:** Includes a robust `--dry-run` mode and confirmation
-  prompts to ensure your precious source code stays safe.
-- **💨 Built for Speed:** Leverages Python 3.13 and modern async-style progress
-  feedback.
-
-## 🛠️ Tech Stack
-
-- **Python 3.13+**
-- **[Typer](https://typer.tiangolo.com/):** For a clean and intuitive CLI
-  experience.
-- **[Rich](https://rich.readthedocs.io/):** For beautiful terminal output, tables,
-  and progress indicators.
-- **[uv](https://github.com/astral-sh/uv):** For lightning-fast dependency
-  management.
-
 ## 📦 Installation
 
 `fsweep` is best managed with `uv`. If you don't have it yet, get it from
 [astral.sh/uv](https://astral.sh/uv).
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/fsweep.git
-cd fsweep
-
-# Synchronize dependencies and set up the environment
-uv sync
+uv tool install fsweep
 ```
 
 ## 📖 Usage
@@ -50,13 +22,13 @@ uv sync
 Keep your workspace spotless with a single command:
 
 ```bash
-uv run fsweep clean --path /path/to/projects
+uv run fsweep --path /path/to/projects
 ```
 
 ### Options
 
 | Option | Shorthand | Description | Default |
-| :--- | :--- | :--- | :--- |
+| :----- | :-------- | :---------- | :------ |
 | `--path` | | The directory to scan for cleanup. | `~/developer/archive` |
 | `--force` | `-f` | Mop up everything without asking for confirmation. | `False` |
 | `--dry-run` | `-d` | Just a scout mission—simulates cleanup without deleting. | `False` |
@@ -71,10 +43,40 @@ uv run fsweep clean --path /path/to/projects
 - **Rust:** `target`
 - **Java/Kotlin/C#:** `bin`, `obj`, `build`, `dist`, `.gradle`
 
+## 🚀 Key Features
+
+- **🔍 Intelligent Scanning:** Recursively hunts down common "junk" folders
+  across your projects.
+- **💰 Size Estimation:** Calculates exactly how much space you'll recover
+  before you commit.
+- **📊 Rich Terminal UI:** Presents findings in beautiful, easy-to-read tables
+  thanks to [Rich](https://github.com/Textualize/rich).
+- **🛡️ Safety First:** Includes a robust `--dry-run` mode and confirmation
+  prompts to ensure your precious source code stays safe.
+- **💨 Built for Speed:** Leverages Python 3.13 and modern async-style progress
+  feedback.
+
 ## 🧪 Development
 
 Ready to help improve the `fsweep`? Here's how to keep the codebase as clean as
 your workspace.
+
+```bash
+git clone https://github.com/drew-simmons/fsweep.git
+cd fsweep
+
+uv sync
+```
+
+## 🛠️ Tech Stack
+
+- **Python 3.13+**
+- **[Typer](https://typer.tiangolo.com/):** For a clean and intuitive CLI
+  experience.
+- **[Rich](https://rich.readthedocs.io/):** For beautiful terminal output, tables,
+  and progress indicators.
+- **[uv](https://github.com/astral-sh/uv):** For lightning-fast dependency
+  management.
 
 ### Running Tests
 
@@ -89,6 +91,7 @@ We use [Ruff](https://github.com/astral-sh/ruff) to keep things tidy:
 ```bash
 uv run ruff check .
 uv run ruff format .
+uv run rumdl fmt .
 ```
 
 ### Type Checking
@@ -96,5 +99,8 @@ uv run ruff format .
 Keep the types in check with `ty`:
 
 ```bash
-uv run ty
+uv run ty check .
 ```
+
+> [!TIP]
+> `uv run prek -a` runs all the above linting and formatting.
