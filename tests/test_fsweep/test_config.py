@@ -1,5 +1,6 @@
+from typing import Optional, Set
+
 import pytest
-from typing import Set, Optional
 
 try:
     from fsweep.config import TARGET_FOLDERS

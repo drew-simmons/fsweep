@@ -1,13 +1,14 @@
-import pytest
-from pathlib import Path
 import os
+from pathlib import Path
+
+import pytest
+
 from fsweep.cli import FSweepEngine
 
 
 @pytest.fixture
 def symlink_workspace(tmp_path: Path) -> Path:
-    """
-    Creates a workspace with symlinks to test size calculation.
+    """Creates a workspace with symlinks to test size calculation.
     Structure:
     - real_folder/
         - large_file.txt (1MB)
@@ -33,8 +34,7 @@ def symlink_workspace(tmp_path: Path) -> Path:
 
 
 def test_get_size_ignores_symlinks(symlink_workspace):
-    """
-    Verify that get_size does NOT follow symlinks to directories,
+    """Verify that get_size does NOT follow symlinks to directories,
     preventing double counting or counting outside junk folder.
     """
     engine = FSweepEngine(symlink_workspace)
@@ -51,9 +51,7 @@ def test_get_size_ignores_symlinks(symlink_workspace):
 
 
 def test_get_size_symlink_to_file(symlink_workspace):
-    """
-    Verify that get_size does not count the target size of a file symlink.
-    """
+    """Verify that get_size does not count the target size of a file symlink."""
     engine = FSweepEngine(symlink_workspace)
     real_folder = symlink_workspace / "real_folder"
     junk_folder = symlink_workspace / "junk_folder"
@@ -71,9 +69,7 @@ def test_get_size_symlink_to_file(symlink_workspace):
 
 
 def test_get_size_handles_permission_error(tmp_path):
-    """
-    Verify that get_size skips files/folders it cannot access.
-    """
+    """Verify that get_size skips files/folders it cannot access."""
     engine = FSweepEngine(tmp_path)
     restricted_dir = tmp_path / "restricted"
     restricted_dir.mkdir()
@@ -94,9 +90,7 @@ def test_get_size_handles_permission_error(tmp_path):
 
 
 def test_engine_cleanup_respects_dry_run(tmp_path):
-    """
-    Verify that FSweepEngine.cleanup does not delete files when dry_run is True.
-    """
+    """Verify that FSweepEngine.cleanup does not delete files when dry_run is True."""
     junk_dir = tmp_path / "node_modules"
     junk_dir.mkdir()
     (junk_dir / "file.txt").write_text("content")
@@ -112,9 +106,7 @@ def test_engine_cleanup_respects_dry_run(tmp_path):
 
 
 def test_engine_cleanup_deletes_when_not_dry_run(tmp_path):
-    """
-    Verify that FSweepEngine.cleanup deletes files when dry_run is False.
-    """
+    """Verify that FSweepEngine.cleanup deletes files when dry_run is False."""
     junk_dir = tmp_path / "node_modules"
     junk_dir.mkdir()
     (junk_dir / "file.txt").write_text("content")
