@@ -1,3 +1,5 @@
+"""Tests for fsweep config values."""
+
 from typing import Optional, Set
 
 import pytest
@@ -8,14 +10,14 @@ except ImportError:
     TARGET_FOLDERS: Optional[Set[str]] = None
 
 
-def test_config_exists():
+def test_config_exists() -> None:
     """Verify that the config module exists and exports TARGET_FOLDERS."""
     assert TARGET_FOLDERS is not None, (
         "fsweep.config module or TARGET_FOLDERS not found"
     )
 
 
-def test_new_artifacts_in_config():
+def test_new_artifacts_in_config() -> None:
     """Verify that new artifacts are present in TARGET_FOLDERS."""
     if TARGET_FOLDERS is None:
         pytest.fail("TARGET_FOLDERS not available")
