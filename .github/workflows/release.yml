@@ -2,34 +2,82 @@ name: release
 
 on:
   push:
-    tags:
-      - v*
+    branches:
+      - main
 
 jobs:
-  pypi:
-    name: publish to pypi
+  release:
+    name: update changelog and create release
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
+    if: github.actor != 'github-actions[bot]'
     permissions:
-      id-token: write
-      contents: read
+      contents: write
     steps:
       - name: checkout
         uses: actions/checkout@v5
-      - name: install uv
-        uses: astral-sh/setup-uv@v6
-      - name: install python
-        run: uv python install 3.13
-      - name: build
-        run: uv build
-      - name: smoke test (wheel, cli)
-        run: uv run --isolated --no-project --with dist/*.whl fsweep --help
-      - name: smoke test (wheel, module)
-        run: uv run --isolated --no-project --with dist/*.whl python -m fsweep --help
-      - name: smoke test (sdist, cli)
-        run: uv run --isolated --no-project --with dist/*.tar.gz fsweep --help
-      - name: smoke test (sdist, module)
-        run: uv run --isolated --no-project --with dist/*.tar.gz python -m fsweep --help
-      - name: publish
-        run: uv publish
+        with:
+          fetch-depth: 0
+
+      - name: resolve release tag
+        id: version
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n 1)"
+          tag="v${version}"
+          if git rev-parse "${tag}" >/dev/null 2>&1; then
+            should_release=false
+          else
+            should_release=true
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "should_release=${should_release}" >> "${GITHUB_OUTPUT}"
+
+      - name: generate changelog
+        if: steps.version.outputs.should_release == 'true'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: pyproject.toml
+          args: --tag ${{ steps.version.outputs.tag }}
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: commit changelog
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(release): update changelog for ${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main
+
+      - name: create and push tag
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: generate release notes
+        if: steps.version.outputs.should_release == 'true'
+        id: release_notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: pyproject.toml
+          args: --tag ${{ steps.version.outputs.tag }} --strip header
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: create github release
+        if: steps.version.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          body: ${{ steps.release_notes.outputs.content }}
+
+      - name: no-op when tag exists
+        if: steps.version.outputs.should_release != 'true'
+        run: echo "Tag ${{ steps.version.outputs.tag }} already exists; skipping release."
