@@ -11,6 +11,7 @@ ONE_MIB = 1024 * 1024
 READ_WRITE_EXECUTE_PERMS = 0o755
 NO_PERMS = 0o000
 
+
 @pytest.fixture
 def symlink_workspace(tmp_path: Path) -> Path:
     """Creates a workspace with symlinks to test size calculation.
