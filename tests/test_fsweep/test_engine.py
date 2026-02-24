@@ -1,6 +1,8 @@
 """Engine-focused tests, including symlink and cleanup behavior."""
 
 import os
+import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,8 @@ from fsweep.cli import FSweepEngine
 ONE_MIB = 1024 * 1024
 READ_WRITE_EXECUTE_PERMS = 0o755
 NO_PERMS = 0o000
+EXPECTED_TWO_ITEMS = 2
+PERFORMANCE_THRESHOLD_SECONDS = 2.5
 
 
 @pytest.fixture
@@ -107,10 +111,13 @@ def test_engine_cleanup_respects_dry_run(tmp_path: Path) -> None:
     engine.found_items = [junk_dir]
 
     # Run cleanup with dry_run=True
-    engine.cleanup(dry_run=True)
+    stats = engine.cleanup(dry_run=True)
 
     # Folder should still exist
     assert junk_dir.exists()
+    assert stats.deleted == 0
+    assert stats.skipped == 1
+    assert stats.failed == 0
 
 
 def test_engine_cleanup_deletes_when_not_dry_run(tmp_path: Path) -> None:
@@ -123,7 +130,130 @@ def test_engine_cleanup_deletes_when_not_dry_run(tmp_path: Path) -> None:
     engine.found_items = [junk_dir]
 
     # Run cleanup with dry_run=False
-    engine.cleanup(dry_run=False)
+    stats = engine.cleanup(dry_run=False)
 
     # Folder should be gone
     assert not junk_dir.exists()
+    assert stats.deleted == 1
+    assert stats.skipped == 0
+    assert stats.failed == 0
+
+
+def test_engine_cleanup_handles_delete_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify cleanup continues and records failures when deletes error."""
+    ok_dir = tmp_path / "node_modules"
+    ok_dir.mkdir()
+    (ok_dir / "file.txt").write_text("content")
+
+    failing_dir = tmp_path / "venv"
+    failing_dir.mkdir()
+    (failing_dir / "file.txt").write_text("content")
+
+    engine = FSweepEngine(tmp_path)
+    engine.found_items = [ok_dir, failing_dir]
+
+    original_rmtree = shutil.rmtree
+
+    def fake_rmtree(path: Path) -> None:
+        if Path(path) == failing_dir:
+            raise PermissionError("blocked")
+        original_rmtree(path)
+
+    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+
+    stats = engine.cleanup(dry_run=False)
+
+    assert not ok_dir.exists()
+    assert failing_dir.exists()
+    assert stats.deleted == 1
+    assert stats.skipped == 0
+    assert stats.failed == 1
+
+
+def test_scan_finds_nested_target_directories(tmp_path: Path) -> None:
+    """Verify scan finds nested target directories exactly once each."""
+    top_target = tmp_path / "project" / "node_modules"
+    nested_target = top_target / "nested" / "venv"
+    top_target.mkdir(parents=True)
+    nested_target.mkdir(parents=True)
+
+    engine = FSweepEngine(tmp_path)
+    engine.scan()
+
+    found = {item.relative_to(tmp_path) for item in engine.found_items}
+    assert Path("project/node_modules") in found
+    # Nested venv is inside a matched folder, so scan should prune and skip it.
+    assert Path("project/node_modules/nested/venv") not in found
+
+
+def test_scan_handles_symlink_loop(tmp_path: Path) -> None:
+    """Verify scan does not recurse through symlink loops."""
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "node_modules"
+    target.mkdir()
+
+    loop_link = project / "loop"
+    try:
+        os.symlink(project, loop_link)
+    except OSError:
+        pytest.skip("Symlinks not supported on this platform")
+
+    engine = FSweepEngine(tmp_path)
+    engine.scan()
+
+    assert target in engine.found_items
+
+
+def test_scan_multi_project_duplicates(tmp_path: Path) -> None:
+    """Verify same folder names in multiple projects are all discovered."""
+    first = tmp_path / "project_a" / "node_modules"
+    second = tmp_path / "project_b" / "node_modules"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    engine = FSweepEngine(tmp_path)
+    engine.scan()
+
+    assert first in engine.found_items
+    assert second in engine.found_items
+    assert len(engine.found_items) == EXPECTED_TWO_ITEMS
+
+
+def test_scan_permission_restricted_target_folder(tmp_path: Path) -> None:
+    """Verify scan does not crash when target folder permissions are restricted."""
+    restricted = tmp_path / "project" / "node_modules"
+    restricted.mkdir(parents=True)
+    (restricted / "content.txt").write_text("x")
+    os.chmod(restricted, NO_PERMS)
+
+    try:
+        engine = FSweepEngine(tmp_path)
+        engine.scan()
+        assert restricted in engine.found_items
+        assert engine.item_sizes[restricted] == 0
+    finally:
+        os.chmod(restricted, READ_WRITE_EXECUTE_PERMS)
+
+
+def test_scan_performance_sanity_non_blocking(tmp_path: Path) -> None:
+    """Benchmark-style scan test gated by env var to avoid CI flakiness."""
+    if os.getenv("FSWEEP_PERF_CHECK") != "1":
+        pytest.skip("Set FSWEEP_PERF_CHECK=1 to run performance sanity check.")
+
+    project_count = 200
+    for idx in range(project_count):
+        target = tmp_path / f"project_{idx}" / "node_modules"
+        target.mkdir(parents=True)
+        (target / "file.txt").write_bytes(b"x" * 512)
+
+    start = time.perf_counter()
+    engine = FSweepEngine(tmp_path)
+    engine.scan()
+    elapsed = time.perf_counter() - start
+
+    assert len(engine.found_items) == project_count
+    assert elapsed < PERFORMANCE_THRESHOLD_SECONDS

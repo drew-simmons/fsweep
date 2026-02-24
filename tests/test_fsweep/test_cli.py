@@ -1,16 +1,20 @@
 """Tests for fsweep CLI behavior and engine basics."""
 
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from fsweep.cli import FSweepEngine, app
+from fsweep.cli import DEFAULT_MAX_DELETE_COUNT, FSweepEngine, app
 from fsweep.config import TARGET_FOLDERS
 
 runner = CliRunner()
 ONE_KIB = 1024
 EXPECTED_FOUND_ITEMS = 2
+DELETE_FAILURE_EXIT_CODE = 2
 
 
 @pytest.fixture
@@ -80,10 +84,143 @@ def test_target_folders_discovery(tmp_path: Path, folder_name: str) -> None:
 
 def test_cli_dry_run(mock_workspace: Path) -> None:
     """Verify that --dry-run flag is accepted and simulation is reported."""
-    result = runner.invoke(app, ["--path", str(mock_workspace), "--dry-run"])
+    result = runner.invoke(app, ["--path", str(mock_workspace)])
     assert result.exit_code == 0
     assert "DRY-RUN MODE" in result.stdout
     assert "Would have recovered" in result.stdout
+    assert "Cleanup Summary" in result.stdout
 
     # Verify files were NOT deleted
     assert (mock_workspace / "project_a" / "node_modules").exists()
+
+
+def test_cli_rejects_destructive_run_without_yes_delete(mock_workspace: Path) -> None:
+    """Verify destructive mode requires --yes-delete."""
+    result = runner.invoke(app, ["--path", str(mock_workspace), "--delete"])
+    assert result.exit_code == 1
+    assert "requires --yes-delete" in result.stdout
+
+
+def test_cli_destructive_run_with_confirmation(mock_workspace: Path) -> None:
+    """Verify interactive destructive mode still asks for confirmation."""
+    result = runner.invoke(
+        app,
+        ["--path", str(mock_workspace), "--delete", "--yes-delete"],
+        input="y\n",
+    )
+    assert result.exit_code == 0
+    assert "Do you want to delete these folders?" in result.stdout
+    assert "Cleanup Summary" in result.stdout
+    assert not (mock_workspace / "project_a" / "node_modules").exists()
+
+
+def test_cli_refuses_root_path() -> None:
+    """Verify sweeping root path is rejected."""
+    result = runner.invoke(app, ["--path", "/", "--delete", "--yes-delete"])
+    assert result.exit_code == 1
+    assert "Refusing to sweep filesystem root" in result.stdout
+
+
+def test_cli_refuses_home_root_path() -> None:
+    """Verify sweeping home root path is rejected."""
+    result = runner.invoke(
+        app,
+        ["--path", str(Path.home()), "--delete", "--yes-delete"],
+    )
+    assert result.exit_code == 1
+    assert "Refusing to sweep your home directory root" in result.stdout
+
+
+def test_cli_applies_max_delete_count_limit(tmp_path: Path) -> None:
+    """Verify max-delete-count blocks large destructive runs."""
+    for idx in range(DEFAULT_MAX_DELETE_COUNT + 1):
+        (tmp_path / f"project_{idx}" / "node_modules").mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        ["--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
+    )
+    assert result.exit_code == 1
+    assert "exceeds --max-delete-count" in result.stdout
+
+
+def test_cli_no_delete_limit_allows_large_run(tmp_path: Path) -> None:
+    """Verify no-delete-limit overrides max-delete-count."""
+    for idx in range(DEFAULT_MAX_DELETE_COUNT + 1):
+        (tmp_path / f"project_{idx}" / "node_modules").mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--delete",
+            "--yes-delete",
+            "--force",
+            "--no-delete-limit",
+        ],
+    )
+    assert result.exit_code == 0
+
+
+def test_python_module_entrypoint_help() -> None:
+    """Verify `python -m fsweep --help` exits successfully."""
+    result = subprocess.run(
+        [sys.executable, "-m", "fsweep", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+
+
+def test_cli_exits_non_zero_on_delete_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify destructive run exits non-zero when a delete fails."""
+    target = tmp_path / "project" / "node_modules"
+    target.mkdir(parents=True)
+    (target / "file.txt").write_text("content")
+
+    def fake_rmtree(_: Path) -> None:
+        raise PermissionError("blocked")
+
+    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+
+    result = runner.invoke(
+        app,
+        ["--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
+    )
+    assert result.exit_code == DELETE_FAILURE_EXIT_CODE
+    assert "failed to delete" in result.stdout
+
+
+def test_cli_best_effort_allows_delete_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify --best-effort returns success when delete failures occur."""
+    target = tmp_path / "project" / "node_modules"
+    target.mkdir(parents=True)
+    (target / "file.txt").write_text("content")
+
+    def fake_rmtree(_: Path) -> None:
+        raise PermissionError("blocked")
+
+    monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--delete",
+            "--yes-delete",
+            "--force",
+            "--best-effort",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Cleanup Summary" in result.stdout
