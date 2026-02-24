@@ -17,35 +17,106 @@ seconds.
 uv tool install fsweep
 ```
 
-## 📖 Usage
+## ⚡ Quickstart (30 seconds)
 
-Keep your workspace spotless with a single command:
-
-```bash
-uv run fsweep --path /path/to/projects
-```
-
-Safe destructive run flow:
+Safe first run (dry-run, current directory):
 
 ```bash
-# Step 1: default dry-run (non-destructive)
-uv run fsweep --path /path/to/projects
-
-# Step 2: destructive run with explicit confirmation flags
-uv run fsweep --path /path/to/projects --delete --yes-delete
+uv run fsweep
 ```
+
+Machine-readable dry-run:
+
+```bash
+uv run fsweep --output json
+```
+
+Destructive run with hard-delete:
+
+```bash
+uv run fsweep --delete --yes-delete
+```
+
+Destructive run with recoverable trash mode:
+
+```bash
+uv run fsweep --delete --trash --yes-delete
+```
+
+The default scan path is your current working directory (`.`).
 
 ### Options
 
 | Option | Shorthand | Description | Default |
 | :----- | :-------- | :---------- | :------ |
-| `--path` | | The directory to scan for cleanup. | `~/developer/archive` |
-| `--force` | `-f` | Mop up everything without asking for confirmation. | `False` |
+| `--path` | | The directory to scan for cleanup. | `.` |
+| `--force` | `-f` | Skip final destructive confirmation prompt. | `False` |
 | `--dry-run` / `--delete` | `-d` | Simulate cleanup (default) or enable destructive mode. | `True` |
+| `--trash` | | Move matched folders to `~/.fsweep_trash` instead of hard delete. | `False` |
+| `--interactive` | | Select matched folders before execution. | `False` |
+| `--use-index` / `--no-index` | | Enable/disable scan size cache index. | `True` |
+| `--index-file` | | Path to scan index JSON file. | `<scan_path>/.fsweep-index.json` |
+| `--output` | | Output format: `table` or `json`. | `table` |
+| `--report` | | Write a markdown run report to a file. | unset |
+| `--config` | | Load a TOML config file. | unset |
+| `--target-folder` | | Add custom target folder names (repeatable). | `[]` |
+| `--exclude-pattern` | | Exclude glob patterns from scan (repeatable). | `[]` |
+| `--protected-path` | | Protect paths from scan/deletion (repeatable). | `[]` |
 | `--yes-delete` | | Required for destructive runs. | `False` |
 | `--best-effort` | | Continue and exit successfully even if deletes fail. | `False` |
 | `--max-delete-count` | | Max folders allowed in one destructive run. | `50` |
 | `--no-delete-limit` | | Override `--max-delete-count`. | `False` |
+
+## ⚙️ Config File (`fsweep.toml`)
+
+`fsweep` loads config in this order (later wins):
+
+1. `~/.config/fsweep/fsweep.toml`
+2. `<scan_path>/fsweep.toml`
+3. `--config /path/to/fsweep.toml`
+4. CLI flags
+
+Example:
+
+```toml
+[fsweep]
+target_folders = ["node_modules", "venv", "vendor_cache"]
+exclude_patterns = ["**/.git/**", "**/keep/**"]
+protected_paths = ["important", "../do-not-touch"]
+max_delete_count = 75
+no_delete_limit = false
+```
+
+`protected_paths` are resolved relative to the config file that defines them.
+
+## 📤 JSON Output Contract
+
+Use `--output json` for scripts/automation.
+
+- `schema_version`: currently `"1"`
+- `summary`: totals, counts, and effective action
+- `items[]`: per-folder path, size, action, status, and optional error
+- error responses also use JSON with `error` and `exit_code`
+
+## ⚖️ Dry-run Parity Guarantee
+
+`fsweep` now includes a dry-run parity test that guarantees the matched set in
+dry-run and destructive mode is identical for equivalent flags and path.
+
+## 📈 Benchmark + Indexing
+
+- `--use-index` caches directory size calculations in
+  `<scan_path>/.fsweep-index.json` to speed repeated scans.
+- Use `--no-index` to benchmark raw scan performance.
+- Opt-in benchmark suite:
+
+<!-- rumdl-disable MD013 -->
+
+```bash
+FSWEEP_BENCHMARK=1 ./.venv/bin/python -m pytest tests/test_fsweep/test_benchmark.py -q
+```
+
+<!-- rumdl-disable MD013 -->
 
 ### 🧹 What does it sweep?
 
@@ -70,8 +141,7 @@ uv run fsweep --path /path/to/projects --delete --yes-delete
   thanks to [Rich](https://github.com/Textualize/rich).
 - **🛡️ Safety First:** Includes a robust `--dry-run` mode and confirmation
   prompts to ensure your precious source code stays safe.
-- **💨 Built for Speed:** Leverages Python 3.13 and modern async-style progress
-  feedback.
+- **💨 Reach + Speed:** Supports Python 3.10+ and keeps scan/deletion fast.
 
 ## 🧪 Development
 
@@ -87,7 +157,7 @@ uv sync
 
 ## 🛠️ Tech Stack
 
-- **Python 3.13+**
+- **Python 3.10+**
 - **[Typer](https://typer.tiangolo.com/):** For a clean and intuitive CLI
   experience.
 - **[Rich](https://rich.readthedocs.io/):** For beautiful terminal output, tables,
@@ -132,6 +202,7 @@ uv run ty check .
 
 - Default mode is non-destructive (`--dry-run`).
 - Destructive mode requires `--delete --yes-delete`.
+- Optional `--trash` mode is destructive but recoverable.
 - `fsweep` refuses to sweep `/` and your home directory root.
 - Destructive runs are capped by `--max-delete-count` unless overridden.
 
