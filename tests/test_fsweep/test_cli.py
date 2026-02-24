@@ -1,8 +1,10 @@
 """Tests for fsweep CLI behavior and engine basics."""
 
+import json
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -224,3 +226,206 @@ def test_cli_best_effort_allows_delete_failures(
     )
     assert result.exit_code == 0
     assert "Cleanup Summary" in result.stdout
+
+
+def test_cli_json_output_is_machine_readable(mock_workspace: Path) -> None:
+    """Verify --output json returns stable JSON payload."""
+    result = runner.invoke(app, ["--path", str(mock_workspace), "--output", "json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == "1"
+    assert payload["dry_run"] is True
+    assert payload["summary"]["matched_count"] == EXPECTED_FOUND_ITEMS
+    assert len(payload["items"]) == EXPECTED_FOUND_ITEMS
+
+
+def test_cli_trash_moves_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify --trash moves matched directories to fsweep trash path."""
+    target = tmp_path / "project" / "node_modules"
+    target.mkdir(parents=True)
+    (target / "file.txt").write_text("content")
+
+    trash_root = tmp_path / ".fsweep_trash" / "test-run"
+
+    def fake_trash_root(_: FSweepEngine) -> Path:
+        trash_root.mkdir(parents=True, exist_ok=True)
+        return trash_root
+
+    monkeypatch.setattr(FSweepEngine, "_trash_root", fake_trash_root)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--delete",
+            "--trash",
+            "--yes-delete",
+            "--force",
+        ],
+    )
+    assert result.exit_code == 0
+    assert not target.exists()
+    assert (trash_root / "project" / "node_modules" / "file.txt").exists()
+
+
+def test_cli_interactive_selection_deletes_only_selected(tmp_path: Path) -> None:
+    """Verify --interactive can limit deletion to a selected index set."""
+    first = tmp_path / "project_a" / "node_modules"
+    second = tmp_path / "project_b" / "venv"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--delete",
+            "--yes-delete",
+            "--interactive",
+            "--force",
+        ],
+        input="1\n",
+    )
+    assert result.exit_code == 0
+    assert not first.exists()
+    assert second.exists()
+
+
+def test_cli_protected_path_is_excluded_from_results(tmp_path: Path) -> None:
+    """Verify protected paths are not scanned or acted on."""
+    protected_target = tmp_path / "project_a" / "node_modules"
+    unprotected_target = tmp_path / "project_b" / "venv"
+    protected_target.mkdir(parents=True)
+    unprotected_target.mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--output",
+            "json",
+            "--protected-path",
+            str(tmp_path / "project_a"),
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    item_paths = {item["relative_path"] for item in payload["items"]}
+    assert "project_a/node_modules" not in item_paths
+    assert "project_b/venv" in item_paths
+
+
+def test_cli_default_path_is_current_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify default --path uses current working directory."""
+    target = tmp_path / "node_modules"
+    target.mkdir()
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["--output", "json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["path"] == str(tmp_path.resolve())
+
+
+def test_cli_config_precedence_cli_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify precedence order: CLI > explicit config > local config > global config."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    global_config = tmp_path / "global.toml"
+    explicit_config = tmp_path / "explicit.toml"
+    local_config = workspace / "fsweep.toml"
+
+    global_config.write_text(
+        textwrap.dedent(
+            """
+            [fsweep]
+            target_folders = ["cache_global"]
+            max_delete_count = 10
+            """
+        ).strip()
+        + "\n"
+    )
+    local_config.write_text(
+        textwrap.dedent(
+            """
+            [fsweep]
+            target_folders = ["cache_local"]
+            max_delete_count = 9
+            """
+        ).strip()
+        + "\n"
+    )
+    explicit_config.write_text(
+        textwrap.dedent(
+            """
+            [fsweep]
+            target_folders = ["cache_explicit"]
+            max_delete_count = 8
+            """
+        ).strip()
+        + "\n"
+    )
+
+    for name in ["cache_global", "cache_local", "cache_explicit"]:
+        (workspace / "project" / name).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr("fsweep.cli.global_config_path", lambda: global_config)
+
+    result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(workspace),
+            "--config",
+            str(explicit_config),
+            "--delete",
+            "--yes-delete",
+            "--force",
+            "--max-delete-count",
+            "1",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert "--max-delete-count=1" in payload["error"]
+
+
+def test_cli_dry_run_parity_with_destructive_set(tmp_path: Path) -> None:
+    """Verify dry-run and destructive run target the same matched paths."""
+    first = tmp_path / "project_a" / "node_modules"
+    second = tmp_path / "project_b" / "venv"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    dry_run_result = runner.invoke(app, ["--path", str(tmp_path), "--output", "json"])
+    assert dry_run_result.exit_code == 0
+    dry_payload = json.loads(dry_run_result.stdout)
+    dry_set = {item["relative_path"] for item in dry_payload["items"]}
+
+    delete_result = runner.invoke(
+        app,
+        [
+            "--path",
+            str(tmp_path),
+            "--delete",
+            "--yes-delete",
+            "--force",
+            "--output",
+            "json",
+        ],
+    )
+    assert delete_result.exit_code == 0
+    delete_payload = json.loads(delete_result.stdout)
+    delete_set = {item["relative_path"] for item in delete_payload["items"]}
+
+    assert delete_set == dry_set
