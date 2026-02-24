@@ -18,6 +18,17 @@ from fsweep.config import TARGET_FOLDERS
 app = typer.Typer(help="🚀 Advanced Workspace Cleanup Tool for Developers")
 console = Console()
 BYTE_UNIT_BASE = 1024
+DEFAULT_MAX_DELETE_COUNT = 50
+
+
+class CleanupStats:
+    """Represents the outcome of a cleanup operation."""
+
+    def __init__(self) -> None:
+        """Initialize counters for cleanup results."""
+        self.deleted = 0
+        self.skipped = 0
+        self.failed = 0
 
 
 class FSweepEngine:
@@ -101,39 +112,100 @@ class FSweepEngine:
         return f"{size:.2f} TB"
 
     def cleanup(
-        self, dry_run: bool = False, callback: Optional[Callable[[Path], None]] = None
-    ) -> None:
+        self,
+        dry_run: bool = False,
+        callback: Optional[Callable[[Path], None]] = None,
+    ) -> CleanupStats:
         """Deletes the found junk items.
 
         Args:
             dry_run: If True, only simulates deletion.
             callback: An optional function called with each deleted Path for
                 progress reporting.
+
+        Returns:
+            A summary of deleted, skipped, and failed items.
         """
+        stats = CleanupStats()
         for item in self.found_items:
-            if not dry_run:
+            if dry_run:
+                stats.skipped += 1
+                if callback:
+                    callback(item)
+                continue
+            try:
                 shutil.rmtree(item)
+                stats.deleted += 1
+            except FileNotFoundError:
+                stats.skipped += 1
+            except (PermissionError, OSError):
+                stats.failed += 1
             if callback:
                 callback(item)
+        return stats
 
 
 @app.command()
-def clean(
+def clean(  # noqa: PLR0913, PLR0915
     path: Path = typer.Option(
-        Path.home() / "developer/archive", help="The directory to scan for cleanup"
+        Path.home() / "developer/archive",
+        metavar="DIRECTORY",
+        show_default="~/developer/archive",
+        help="Workspace directory to scan.",
+        rich_help_panel="Scan",
     ),
     force: bool = typer.Option(
-        False, "--force", "-f", help="Delete files without confirmation"
+        False,
+        "--force",
+        "-f",
+        help="Skip interactive delete confirmation.",
+        rich_help_panel="Execution",
     ),
     dry_run: bool = typer.Option(
-        False, "--dry-run", "-d", help="Simulate cleanup without deleting files"
+        True,
+        "--dry-run/--delete",
+        "-d",
+        help="Preview actions (default) or perform deletion.",
+        rich_help_panel="Execution",
+    ),
+    no_dry_run: bool = typer.Option(
+        False,
+        "--no-dry-run",
+        hidden=True,
+    ),
+    yes_delete: bool = typer.Option(
+        False,
+        "--yes-delete",
+        help="Required for destructive runs.",
+        rich_help_panel="Safety",
+    ),
+    best_effort: bool = typer.Option(
+        False,
+        "--best-effort",
+        help="Return success even if some deletes fail.",
+        rich_help_panel="Safety",
+    ),
+    max_delete_count: int = typer.Option(
+        DEFAULT_MAX_DELETE_COUNT,
+        "--max-delete-count",
+        min=1,
+        help="Maximum number of directories allowed in one destructive run.",
+        rich_help_panel="Safety",
+    ),
+    no_delete_limit: bool = typer.Option(
+        False,
+        "--no-delete-limit",
+        help="Disable --max-delete-count protection.",
+        rich_help_panel="Safety",
     ),
 ) -> None:
     """Scan and clean developer bloat (node_modules, venv, etc.)."""
-    banner_style = "yellow" if dry_run else "blue"
+    effective_dry_run = dry_run and not no_dry_run
+
+    banner_style = "yellow" if effective_dry_run else "blue"
     banner_text = (
         "[bold yellow]DRY-RUN MODE[/bold yellow] 🔍"
-        if dry_run
+        if effective_dry_run
         else "[bold blue]Developer Workspace FSweep[/bold blue] 🧹"
     )
 
@@ -143,12 +215,42 @@ def clean(
         rprint(f"[bold red]Error:[/bold red] Path {path} does not exist.")
         raise typer.Exit(1)
 
+    resolved_path = path.resolve()
+    if resolved_path == Path("/"):
+        rprint("[bold red]Error:[/bold red] Refusing to sweep filesystem root ('/').")
+        raise typer.Exit(1)
+    if resolved_path == Path.home().resolve():
+        rprint(
+            "[bold red]Error:[/bold red] Refusing to sweep your home directory root."
+        )
+        raise typer.Exit(1)
+
+    if not effective_dry_run and not yes_delete:
+        rprint(
+            "[bold red]Error:[/bold red] Destructive mode requires "
+            "[bold]--yes-delete[/bold]."
+        )
+        raise typer.Exit(1)
+
     engine = FSweepEngine(path)
     engine.scan()
 
     if not engine.found_items:
         rprint("[bold green]✨ Everything is clean! No junk found.[/bold green]")
         return
+
+    if (
+        not effective_dry_run
+        and not no_delete_limit
+        and len(engine.found_items) > max_delete_count
+    ):
+        rprint(
+            "[bold red]Error:[/bold red] Refusing to delete "
+            f"{len(engine.found_items)} folders because it exceeds "
+            f"--max-delete-count={max_delete_count}. "
+            "Use --no-delete-limit to override."
+        )
+        raise typer.Exit(1)
 
     # Display Results Table
     table = Table(title=f"Results for {path.name}", title_style="bold magenta")
@@ -178,29 +280,43 @@ def clean(
     )
 
     # Confirmation Logic (Skipped in dry-run)
-    if not dry_run and not force:
+    if not effective_dry_run and not force:
         confirm = typer.confirm("Do you want to delete these folders?", default=False)
         if not confirm:
             rprint("[yellow]Aborted. No files were harmed.[/yellow]")
             return
 
     # Execution Phase
-    action_text = "[yellow]Simulating..." if dry_run else "[red]Deleting..."
+    action_text = "[yellow]Simulating..." if effective_dry_run else "[red]Deleting..."
     with Progress() as progress:
         task = progress.add_task(action_text, total=len(engine.found_items))
-        engine.cleanup(
-            dry_run=dry_run, callback=lambda _: progress.update(task, advance=1)
+        stats = engine.cleanup(
+            dry_run=effective_dry_run,
+            callback=lambda _: progress.update(task, advance=1),
         )
 
     recovered_size = engine.format_size(engine.total_bytes)
-    success_msg = (
-        f"\n[bold green]✅ Successfully recovered {recovered_size}![/bold green]"
-    )
-    dry_run_msg = (
-        f"\n[bold yellow]✨ Dry-run complete. "
-        f"Would have recovered {recovered_size}.[/bold yellow]"
-    )
-    rprint(dry_run_msg if dry_run else success_msg)
+    if effective_dry_run:
+        rprint(
+            f"\n[bold yellow]✨ Dry-run complete. "
+            f"Would have recovered {recovered_size}.[/bold yellow]"
+        )
+    else:
+        rprint(f"\n[bold green]✅ Recovered up to {recovered_size}.[/bold green]")
+
+    summary_table = Table(title="Cleanup Summary", title_style="bold cyan")
+    summary_table.add_column("Deleted", justify="right", style="green")
+    summary_table.add_column("Skipped", justify="right", style="yellow")
+    summary_table.add_column("Failed", justify="right", style="red")
+    summary_table.add_row(str(stats.deleted), str(stats.skipped), str(stats.failed))
+    console.print(summary_table)
+
+    if stats.failed > 0 and not best_effort:
+        rprint(
+            "[bold red]Error:[/bold red] One or more directories failed to delete. "
+            "Use --best-effort to ignore failures."
+        )
+        raise typer.Exit(2)
 
 
 if __name__ == "__main__":
