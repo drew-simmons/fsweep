@@ -14,6 +14,7 @@ READ_WRITE_EXECUTE_PERMS = 0o755
 NO_PERMS = 0o000
 EXPECTED_TWO_ITEMS = 2
 PERFORMANCE_THRESHOLD_SECONDS = 2.5
+INDEX_CACHE_FILE_BYTES = 128
 
 
 @pytest.fixture
@@ -111,7 +112,7 @@ def test_engine_cleanup_respects_dry_run(tmp_path: Path) -> None:
     engine.found_items = [junk_dir]
 
     # Run cleanup with dry_run=True
-    stats = engine.cleanup(dry_run=True)
+    stats, _ = engine.cleanup(dry_run=True)
 
     # Folder should still exist
     assert junk_dir.exists()
@@ -130,7 +131,7 @@ def test_engine_cleanup_deletes_when_not_dry_run(tmp_path: Path) -> None:
     engine.found_items = [junk_dir]
 
     # Run cleanup with dry_run=False
-    stats = engine.cleanup(dry_run=False)
+    stats, _ = engine.cleanup(dry_run=False)
 
     # Folder should be gone
     assert not junk_dir.exists()
@@ -164,7 +165,7 @@ def test_engine_cleanup_handles_delete_errors(
 
     monkeypatch.setattr(shutil, "rmtree", fake_rmtree)
 
-    stats = engine.cleanup(dry_run=False)
+    stats, _ = engine.cleanup(dry_run=False)
 
     assert not ok_dir.exists()
     assert failing_dir.exists()
@@ -257,3 +258,42 @@ def test_scan_performance_sanity_non_blocking(tmp_path: Path) -> None:
 
     assert len(engine.found_items) == project_count
     assert elapsed < PERFORMANCE_THRESHOLD_SECONDS
+
+
+def test_scan_writes_index_file(tmp_path: Path) -> None:
+    """Verify scan writes an index file when indexing is enabled."""
+    target = tmp_path / "project" / "node_modules"
+    target.mkdir(parents=True)
+    (target / "file.txt").write_text("content")
+    index_file = tmp_path / ".fsweep-index.json"
+
+    engine = FSweepEngine(tmp_path)
+    engine.scan(show_progress=False, use_index=True, index_path=index_file)
+
+    assert index_file.exists()
+    contents = index_file.read_text()
+    assert '"schema_version": "1"' in contents
+    assert str(target.resolve()) in contents
+
+
+def test_scan_uses_index_cache_when_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify repeated scans can reuse indexed size values."""
+    target = tmp_path / "project" / "node_modules"
+    target.mkdir(parents=True)
+    (target / "file.txt").write_bytes(b"x" * INDEX_CACHE_FILE_BYTES)
+    index_file = tmp_path / ".fsweep-index.json"
+
+    first_engine = FSweepEngine(tmp_path)
+    first_engine.scan(show_progress=False, use_index=True, index_path=index_file)
+    assert target in first_engine.found_items
+
+    def fail_get_size(_: Path) -> int:
+        raise AssertionError("get_size should not be called when index cache is valid")
+
+    second_engine = FSweepEngine(tmp_path)
+    monkeypatch.setattr(second_engine, "get_size", fail_get_size)
+    second_engine.scan(show_progress=False, use_index=True, index_path=index_file)
+
+    assert second_engine.item_sizes[target] == INDEX_CACHE_FILE_BYTES
