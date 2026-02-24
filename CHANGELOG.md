@@ -1,8 +1,46 @@
-# Changelog
+## [0.1.0] - 2026-02-24
 
-All notable changes to this project will be documented in this file.
+### 🚀 Features
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+- Initial commit
+- Expand fsweep targets and update tooling
 
-## [Unreleased]
+### 🐛 Bug Fixes
+
+- *(ci)* Run prek
+- *(prek)* Ty args
+- When actions run
+- *(release)* Grant read access to pull requests for git-cliff
+
+### 💼 Other
+
+- *(deps)* Remove pytest-cov from dev dependencies
+
+### 📚 Documentation
+
+- *(readme)* Refresh install and development instructions
+- *(repo)* Scaffold templates and community files
+
+### ⚡ Performance
+
+- *(cli)* Avoid redundant traversal when scanning targets
+
+### 🎨 Styling
+
+- *(tests)* Normalize imports and docstring formatting
+- Satisfy ruff checks in fsweep package modules
+
+### 🧪 Testing
+
+- Fix ruff violations across test suite
+
+### ⚙️ Miscellaneous Tasks
+
+- *(tooling)* Configure ruff, ty, and local ty pre-commit hook
+- *(workflows)* Add pytest job and PyPI release pipeline
+- *(tooling)* Configure ruff, ty, and local ty pre-commit hook
+- *(tests)* Format for extra line
+- Remove ty prek
+- *(repo)* Apply prek formatting updates
+- *(ci)* Split release and publish workflows
+- Update project metadata and lockfile
