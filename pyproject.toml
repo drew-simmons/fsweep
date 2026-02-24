@@ -21,7 +21,6 @@ fsweep = "fsweep.cli:app"
 dev = [
     "prek>=0.3.3",
     "pytest>=9.0.2",
-    "pytest-cov>=6.0.0",
     "ruff>=0.14.14",
     "ty>=0.0.14",
 ]
