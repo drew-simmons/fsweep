@@ -1,12 +1,15 @@
+import os
 import shutil
-import typer
 from pathlib import Path
-from typing import List, Optional, Callable
-from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.panel import Panel
+from typing import Callable, Dict, List, Optional
+
+import typer
 from rich import print as rprint
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
 from fsweep.config import TARGET_FOLDERS
 
 # --- Configuration ---
@@ -25,6 +28,7 @@ class FSweepEngine:
         """
         self.target_path = target_path
         self.found_items: List[Path] = []
+        self.item_sizes: Dict[Path, int] = {}
         self.total_bytes: int = 0
 
     def get_size(self, path: Path) -> int:
@@ -64,11 +68,17 @@ class FSweepEngine:
             transient=True,
         ) as progress:
             progress.add_task(description="Scanning for junk...", total=None)
-            for path in self.target_path.rglob("*"):
-                if path.is_dir() and path.name in TARGET_FOLDERS:
+            for current_root, dirs, _ in os.walk(
+                self.target_path, topdown=True, followlinks=False
+            ):
+                matched_dirs = [name for name in dirs if name in TARGET_FOLDERS]
+                for name in matched_dirs:
+                    path = Path(current_root) / name
                     size = self.get_size(path)
                     self.found_items.append(path)
+                    self.item_sizes[path] = size
                     self.total_bytes += size
+                dirs[:] = [name for name in dirs if name not in TARGET_FOLDERS]
 
     def format_size(self, size_bytes: int) -> str:
         """Formats a size in bytes into a human-readable string (e.g., MB, GB).
@@ -114,9 +124,7 @@ def clean(
         False, "--dry-run", "-d", help="Simulate cleanup without deleting files"
     ),
 ):
-    """
-    Scan and clean developer bloat (node_modules, venv, etc.)
-    """
+    """Scan and clean developer bloat (node_modules, venv, etc.)"""
     banner_style = "yellow" if dry_run else "blue"
     banner_text = (
         "[bold yellow]DRY-RUN MODE[/bold yellow] 🔍"
@@ -147,7 +155,7 @@ def clean(
         table.add_row(
             str(item.relative_to(path.parent)),
             item.name,
-            engine.format_size(engine.get_size(item)),
+            engine.format_size(engine.item_sizes[item]),
         )
 
     console.print(table)
