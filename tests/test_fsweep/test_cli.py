@@ -1,17 +1,17 @@
-import pytest
 from pathlib import Path
-from fsweep.cli import FSweepEngine
-from fsweep.config import TARGET_FOLDERS
+
+import pytest
 from typer.testing import CliRunner
-from fsweep.cli import app
+
+from fsweep.cli import FSweepEngine, app
+from fsweep.config import TARGET_FOLDERS
 
 runner = CliRunner()
 
 
 @pytest.fixture
 def mock_workspace(tmp_path: Path) -> Path:
-    """
-    Creates a fake directory structure for testing:
+    """Creates a fake directory structure for testing:
     - project_a/node_modules (should find)
     - project_b/venv (should find)
     - project_c/src (should NOT find)
