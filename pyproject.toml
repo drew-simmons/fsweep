@@ -50,6 +50,9 @@ select = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.rumdl.per-file-ignores]
+".github/pull_request_template.md" = ["MD041"]  # Level 1 heading
+
 [tool.ty.src]
 include = [
     "src",
