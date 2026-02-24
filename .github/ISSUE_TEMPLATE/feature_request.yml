@@ -37,4 +37,3 @@ body:
       description: Include examples, references, or mock outputs.
     validations:
       required: false
-
