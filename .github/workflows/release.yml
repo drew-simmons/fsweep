@@ -1,0 +1,31 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  pypi:
+    name: publish to pypi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+      - name: install uv
+        uses: astral-sh/setup-uv@v6
+      - name: install python
+        run: uv python install 3.13
+      - name: build
+        run: uv build
+      - name: smoke test (wheel)
+        run: uv run --isolated --no-project --with dist/*.whl -m fsweep --help
+      - name: smoke test (sdist)
+        run: uv run --isolated --no-project --with dist/*.tar.gz -m fsweep --help
+      - name: publish
+        run: uv publish

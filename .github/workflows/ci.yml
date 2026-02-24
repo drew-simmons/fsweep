@@ -1,10 +1,23 @@
 name: ci
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   prek:
+    name: run pre-commits
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: j178/prek-action@v1
+
+  test:
+    name: run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv run pytest
