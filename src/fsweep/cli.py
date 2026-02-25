@@ -161,7 +161,7 @@ class FSweepEngine:
         """Format bytes to a readable string."""
         size = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
-            if size < BYTE_UNIT_BASE:
+            if round(size, 2) < BYTE_UNIT_BASE:
                 return f"{size:.2f} {unit}"
             size /= BYTE_UNIT_BASE
         return f"{size:.2f} TB"
@@ -899,7 +899,7 @@ def _emit_json(output: OutputFormat, payload: Dict[str, object]) -> None:
 def _format_size(size_bytes: int) -> str:
     size = float(size_bytes)
     for unit in ["B", "KB", "MB", "GB"]:
-        if size < BYTE_UNIT_BASE:
+        if round(size, 2) < BYTE_UNIT_BASE:
             return f"{size:.2f} {unit}"
         size /= BYTE_UNIT_BASE
     return f"{size:.2f} TB"
