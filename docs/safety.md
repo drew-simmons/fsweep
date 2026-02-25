@@ -25,7 +25,7 @@ Optional `--trash` mode is destructive but recoverable. It moves matched
 folders to `~/.fsweep_trash` instead of permanently deleting them.
 
 ```bash
-uv run fsweep --delete --trash --yes-delete
+uv run fsweep clean --delete --trash --yes-delete
 ```
 
 This is the safest way to perform a destructive run, allowing you to recover

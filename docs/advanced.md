@@ -7,7 +7,7 @@
 Use `--output json` for scripts and automation.
 
 ```bash
-uv run fsweep --output json
+uv run fsweep clean --output json
 ```
 
 The JSON output includes:
@@ -23,7 +23,7 @@ Errors also use a standard JSON structure with `error` and `exit_code`.
 Generate a markdown report for your scan and cleanup results:
 
 ```bash
-uv run fsweep --report report.md
+uv run fsweep clean --report report.md
 ```
 
 This is useful for documenting your disk cleanup activity or sharing results

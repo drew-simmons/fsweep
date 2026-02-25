@@ -22,25 +22,25 @@ uv tool install fsweep
 Safe first run (dry-run, current directory):
 
 ```bash
-uv run fsweep
+uv run fsweep clean
 ```
 
 Machine-readable dry-run:
 
 ```bash
-uv run fsweep --output json
+uv run fsweep clean --output json
 ```
 
 Destructive run with hard-delete:
 
 ```bash
-uv run fsweep --delete --yes-delete
+uv run fsweep clean --delete --yes-delete
 ```
 
 Destructive run with recoverable trash mode:
 
 ```bash
-uv run fsweep --delete --trash --yes-delete
+uv run fsweep clean --delete --trash --yes-delete
 ```
 
 The default scan path is your current working directory (`.`).
