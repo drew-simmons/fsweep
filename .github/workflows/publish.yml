@@ -21,20 +21,19 @@ jobs:
       contents: read
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
       - name: install uv
-        uses: astral-sh/setup-uv@v6
-      - name: install python
-        run: uv python install 3.13
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.13"
       - name: build
         run: uv build
-      - name: smoke test (wheel, cli)
-        run: uv run --isolated --no-project --with dist/*.whl fsweep --help
-      - name: smoke test (wheel, module)
-        run: uv run --isolated --no-project --with dist/*.whl python -m fsweep --help
-      - name: smoke test (sdist, cli)
-        run: uv run --isolated --no-project --with dist/*.tar.gz fsweep --help
-      - name: smoke test (sdist, module)
-        run: uv run --isolated --no-project --with dist/*.tar.gz python -m fsweep --help
+      - name: smoke test
+        run: |
+          for pkg in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$pkg" fsweep --help
+            uv run --isolated --no-project --with "$pkg" python -m fsweep --help
+          done
       - name: publish
         run: uv publish

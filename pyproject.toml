@@ -21,6 +21,8 @@ fsweep = "fsweep.cli:app"
 [dependency-groups]
 dev = [
     "git-cliff>=2.12.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.3",
     "prek>=0.3.3",
     "pytest>=9.0.2",
     "ruff>=0.14.14",
