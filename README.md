@@ -112,13 +112,9 @@ dry-run and destructive mode is identical for equivalent flags and path.
 - Use `--no-index` to benchmark raw scan performance.
 - Opt-in benchmark suite:
 
-<!-- rumdl-disable MD013 -->
-
 ```bash
 FSWEEP_BENCHMARK=1 ./.venv/bin/python -m pytest tests/test_fsweep/test_benchmark.py -q
 ```
-
-<!-- rumdl-disable MD013 -->
 
 ### 🧹 What does it sweep?
 
