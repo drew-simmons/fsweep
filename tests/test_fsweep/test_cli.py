@@ -84,9 +84,25 @@ def test_target_folders_discovery(tmp_path: Path, folder_name: str) -> None:
     assert any(item.name == folder_name for item in engine.found_items)
 
 
+def test_scan_respects_fsweepignore(tmp_path: Path) -> None:
+    """Verify that scan skips directories containing .fsweepignore."""
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "node_modules"
+    target.mkdir()
+    (project / ".fsweepignore").write_text("")
+
+    engine = FSweepEngine(tmp_path)
+    engine.scan()
+
+    # The folder 'project' has .fsweepignore, so its children should be ignored.
+    assert target not in engine.found_items
+    assert len(engine.found_items) == 0
+
+
 def test_cli_dry_run(mock_workspace: Path) -> None:
     """Verify that --dry-run flag is accepted and simulation is reported."""
-    result = runner.invoke(app, ["--path", str(mock_workspace)])
+    result = runner.invoke(app, ["clean", "--path", str(mock_workspace)])
     assert result.exit_code == 0
     assert "DRY-RUN MODE" in result.stdout
     assert "Would have recovered" in result.stdout
@@ -98,7 +114,7 @@ def test_cli_dry_run(mock_workspace: Path) -> None:
 
 def test_cli_rejects_destructive_run_without_yes_delete(mock_workspace: Path) -> None:
     """Verify destructive mode requires --yes-delete."""
-    result = runner.invoke(app, ["--path", str(mock_workspace), "--delete"])
+    result = runner.invoke(app, ["clean", "--path", str(mock_workspace), "--delete"])
     assert result.exit_code == 1
     assert "requires --yes-delete" in result.stdout
 
@@ -107,7 +123,7 @@ def test_cli_destructive_run_with_confirmation(mock_workspace: Path) -> None:
     """Verify interactive destructive mode still asks for confirmation."""
     result = runner.invoke(
         app,
-        ["--path", str(mock_workspace), "--delete", "--yes-delete"],
+        ["clean", "--path", str(mock_workspace), "--delete", "--yes-delete"],
         input="y\n",
     )
     assert result.exit_code == 0
@@ -118,7 +134,7 @@ def test_cli_destructive_run_with_confirmation(mock_workspace: Path) -> None:
 
 def test_cli_refuses_root_path() -> None:
     """Verify sweeping root path is rejected."""
-    result = runner.invoke(app, ["--path", "/", "--delete", "--yes-delete"])
+    result = runner.invoke(app, ["clean", "--path", "/", "--delete", "--yes-delete"])
     assert result.exit_code == 1
     assert "Refusing to sweep filesystem root" in result.stdout
 
@@ -127,7 +143,7 @@ def test_cli_refuses_home_root_path() -> None:
     """Verify sweeping home root path is rejected."""
     result = runner.invoke(
         app,
-        ["--path", str(Path.home()), "--delete", "--yes-delete"],
+        ["clean", "--path", str(Path.home()), "--delete", "--yes-delete"],
     )
     assert result.exit_code == 1
     assert "Refusing to sweep your home directory root" in result.stdout
@@ -140,7 +156,7 @@ def test_cli_applies_max_delete_count_limit(tmp_path: Path) -> None:
 
     result = runner.invoke(
         app,
-        ["--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
+        ["clean", "--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
     )
     assert result.exit_code == 1
     assert "exceeds --max-delete-count" in result.stdout
@@ -154,6 +170,7 @@ def test_cli_no_delete_limit_allows_large_run(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--delete",
@@ -193,7 +210,7 @@ def test_cli_exits_non_zero_on_delete_failure(
 
     result = runner.invoke(
         app,
-        ["--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
+        ["clean", "--path", str(tmp_path), "--delete", "--yes-delete", "--force"],
     )
     assert result.exit_code == DELETE_FAILURE_EXIT_CODE
     assert "failed to delete" in result.stdout
@@ -216,6 +233,7 @@ def test_cli_best_effort_allows_delete_failures(
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--delete",
@@ -230,7 +248,9 @@ def test_cli_best_effort_allows_delete_failures(
 
 def test_cli_json_output_is_machine_readable(mock_workspace: Path) -> None:
     """Verify --output json returns stable JSON payload."""
-    result = runner.invoke(app, ["--path", str(mock_workspace), "--output", "json"])
+    result = runner.invoke(
+        app, ["clean", "--path", str(mock_workspace), "--output", "json"]
+    )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["schema_version"] == "1"
@@ -258,6 +278,7 @@ def test_cli_trash_moves_directories(
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--delete",
@@ -281,6 +302,7 @@ def test_cli_interactive_selection_deletes_only_selected(tmp_path: Path) -> None
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--delete",
@@ -305,6 +327,7 @@ def test_cli_protected_path_is_excluded_from_results(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--output",
@@ -327,7 +350,7 @@ def test_cli_default_path_is_current_directory(
     target = tmp_path / "node_modules"
     target.mkdir()
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(app, ["--output", "json"])
+    result = runner.invoke(app, ["clean", "--output", "json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["path"] == str(tmp_path.resolve())
@@ -382,6 +405,7 @@ def test_cli_config_precedence_cli_overrides(
     result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(workspace),
             "--config",
@@ -407,7 +431,9 @@ def test_cli_dry_run_parity_with_destructive_set(tmp_path: Path) -> None:
     first.mkdir(parents=True)
     second.mkdir(parents=True)
 
-    dry_run_result = runner.invoke(app, ["--path", str(tmp_path), "--output", "json"])
+    dry_run_result = runner.invoke(
+        app, ["clean", "--path", str(tmp_path), "--output", "json"]
+    )
     assert dry_run_result.exit_code == 0
     dry_payload = json.loads(dry_run_result.stdout)
     dry_set = {item["relative_path"] for item in dry_payload["items"]}
@@ -415,6 +441,7 @@ def test_cli_dry_run_parity_with_destructive_set(tmp_path: Path) -> None:
     delete_result = runner.invoke(
         app,
         [
+            "clean",
             "--path",
             str(tmp_path),
             "--delete",
