@@ -613,7 +613,7 @@ def system() -> None:
     rprint(Panel("[bold blue]System-wide Cleanup Recommendations[/bold blue]"))
 
     table = Table(box=None, padding=(0, 2))
-    table.add_column("Tool", style="cyan", bold=True)
+    table.add_column("Tool", style="bold cyan")
     table.add_column("Cleanup Command", style="yellow")
     table.add_column("Description", style="dim")
 
