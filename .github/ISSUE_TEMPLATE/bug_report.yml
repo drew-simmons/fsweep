@@ -21,7 +21,7 @@ body:
       label: Steps to reproduce
       description: Exact commands and context that trigger the bug.
       placeholder: |
-        1. Run `uv run fsweep --path ...`
+        1. Run `uv run fsweep clean --path ...`
         2. Use flags `...`
         3. Observe `...`
     validations:
