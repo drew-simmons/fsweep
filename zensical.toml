@@ -27,11 +27,6 @@ nav = [
     { "Configuration" = "configuration.md" },
     { "Safety" = "safety.md" },
     { "Advanced" = "advanced.md" },
-    { "Changelog" = "changelog.md" },
-    { "Contributing" = "contributing.md" },
-    { "License" = "license.md" },
-    { "Security" = "security.md" },
-    { "Support" = "support.md" },
 ]
 
 # ----------------------------------------------------------------------------
