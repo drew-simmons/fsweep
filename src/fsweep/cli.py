@@ -119,6 +119,15 @@ class FSweepEngine:
                 self.target_path, topdown=True, followlinks=False
             ):
                 root_path = Path(current_root)
+
+                # Skip entire tree if .fsweepignore is found
+                try:
+                    if (root_path / ".fsweepignore").exists():
+                        dirs[:] = []
+                        continue
+                except (PermissionError, OSError):
+                    pass
+
                 walkable_dirs: List[str] = []
 
                 for name in dirs:
@@ -596,6 +605,38 @@ def clean(  # noqa: PLR0912, PLR0913, PLR0915
             output,
             exit_code=2,
         )
+
+
+@app.command()
+def system() -> None:
+    """Show hints for cleaning global toolchain artifacts."""
+    rprint(Panel("[bold blue]System-wide Cleanup Recommendations[/bold blue]"))
+
+    table = Table(box=None, padding=(0, 2))
+    table.add_column("Tool", style="cyan", bold=True)
+    table.add_column("Cleanup Command", style="yellow")
+    table.add_column("Description", style="dim")
+
+    recommendations = [
+        ("Docker", "docker system prune", "Removes unused data (images, caches)"),
+        ("uv", "uv cache prune", "Removes outdated wheel/source caches"),
+        ("pnpm", "pnpm store prune", "Removes unreferenced packages from store"),
+        ("npm", "npm cache clean --force", "Clears the global npm cache"),
+        (
+            "Cargo",
+            "cargo install cargo-sweep && cargo sweep -v",
+            "Cleans Rust build artifacts",
+        ),
+        ("Brew", "brew cleanup", "Removes old versions of installed formulae"),
+    ]
+
+    for tool, cmd, desc in recommendations:
+        table.add_row(tool, cmd, desc)
+
+    rprint(table)
+    rprint(
+        "\n[dim]Note: Run these with caution as they affect your whole system.[/dim]"
+    )
 
 
 def _build_effective_config(  # noqa: PLR0913

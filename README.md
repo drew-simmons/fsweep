@@ -88,6 +88,8 @@ no_delete_limit = false
 ```
 
 `protected_paths` are resolved relative to the config file that defines them.
+If you want to include generic names such as `build`, `dist`, `out`, `bin`, or
+`obj`, add them explicitly with `target_folders`.
 
 ## 📤 JSON Output Contract
 
@@ -122,14 +124,16 @@ FSWEEP_BENCHMARK=1 ./.venv/bin/python -m pytest tests/test_fsweep/test_benchmark
 
 `fsweep` knows exactly which corners to sweep. It currently targets:
 
-- **JavaScript/TypeScript:** `node_modules`, `.next`, `.nuxt`, `.svelte-kit`,
-  `.astro`, `.turbo`, `.parcel-cache`, `.vite`
-- **Python:** `venv`, `.venv`, `__pycache__`, `.pytest_cache`, `.tox`, `.nox`,
-  `.mypy_cache`, `.ruff_cache`, `.ipynb_checkpoints`
-- **Build/Test Artifacts:** `build`, `dist`, `out`, `coverage`, `htmlcov`,
-  `.nyc_output`, `.cache`
-- **JVM/.NET/Rust:** `.gradle`, `target`, `bin`, `obj`
-- **Infrastructure-as-Code:** `.terraform`, `.terragrunt-cache`
+- **JavaScript/TypeScript:** `.astro`, `.eslintcache`, `.next`, `.nuxt`,
+  `.parcel-cache`, `.pnpm-store`, `.svelte-kit`, `.turbo`, `.vercel`, `.vite`,
+  `.wrangler`, `node_modules`
+- **Python:** `.ipynb_checkpoints`, `.mypy_cache`, `.nox`, `.pytest_cache`,
+  `.ruff_cache`, `.rumdl_cache`, `.tox`, `.uv-cache`, `.venv`, `__pycache__`,
+  `venv`
+- **Build/Test Artifacts:** `.cache`, `.nyc_output`, `coverage`, `htmlcov`
+- **JVM/.NET/Rust:** `.gradle`
+- **Infrastructure-as-Code:** `.aws-sam`, `.serverless`, `.terraform`,
+  `.terragrunt-cache`
 
 ## 🚀 Key Features
 
@@ -142,6 +146,10 @@ FSWEEP_BENCHMARK=1 ./.venv/bin/python -m pytest tests/test_fsweep/test_benchmark
 - **🛡️ Safety First:** Includes a robust `--dry-run` mode and confirmation
   prompts to ensure your precious source code stays safe.
 - **💨 Reach + Speed:** Supports Python 3.10+ and keeps scan/deletion fast.
+- **🚫 .fsweepignore:** Skip an entire directory tree by placing an empty
+  `.fsweepignore` file in its root.
+- **🔧 System Command:** Run `fsweep system` to get tips for cleaning global
+  tool caches (like Docker or uv).
 
 ## 🧪 Development
 
