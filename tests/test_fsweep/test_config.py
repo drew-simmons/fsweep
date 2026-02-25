@@ -42,16 +42,25 @@ def test_new_artifacts_in_config() -> None:
         ".tox",
         ".mypy_cache",
         ".ruff_cache",
-        "target",
-        "bin",
-        "obj",
+        ".uv-cache",
+        ".rumdl_cache",
         ".gradle",
+        ".aws-sam",
     }
 
     # Check if all expected artifacts are in TARGET_FOLDERS
     assert TARGET_FOLDERS is not None
     missing = expected_artifacts - TARGET_FOLDERS
     assert not missing, f"Missing expected artifacts in TARGET_FOLDERS: {missing}"
+
+
+def test_ambiguous_folder_names_are_not_default_targets() -> None:
+    """Verify ambiguous generic folder names are not scanned by default."""
+    if TARGET_FOLDERS is None:
+        pytest.fail("TARGET_FOLDERS not available")
+
+    ambiguous_names = {"build", "dist", "out", "bin", "obj", "target"}
+    assert TARGET_FOLDERS.isdisjoint(ambiguous_names)
 
 
 def test_load_config_overrides_from_fsweep_table(tmp_path: Path) -> None:
