@@ -10,12 +10,16 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prek:
     name: run pre-commits
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: j178/prek-action@v1
 
   test:
@@ -26,9 +30,10 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - run: uv python install ${{ matrix.python-version }}
-      - run: uv venv --python ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
       - run: uv run pytest
 
   lint:
@@ -36,7 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.13"
       - run: uv run ruff check .
       - run: uv run ty check .
 
@@ -45,9 +53,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.13"
       - run: uv build
-      - run: uv run --isolated --no-project --with dist/*.whl fsweep --help
-      - run: uv run --isolated --no-project --with dist/*.whl python -m fsweep --help
-      - run: uv run --isolated --no-project --with dist/*.tar.gz fsweep --help
-      - run: uv run --isolated --no-project --with dist/*.tar.gz python -m fsweep --help
+      - run: |
+          for pkg in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$pkg" fsweep --help
+            uv run --isolated --no-project --with "$pkg" python -m fsweep --help
+          done

@@ -56,8 +56,7 @@ def test_new_artifacts_in_config() -> None:
 
 def test_ambiguous_folder_names_are_not_default_targets() -> None:
     """Verify ambiguous generic folder names are not scanned by default."""
-    if TARGET_FOLDERS is None:
-        pytest.fail("TARGET_FOLDERS not available")
+    assert TARGET_FOLDERS is not None
 
     ambiguous_names = {"build", "dist", "out", "bin", "obj", "target"}
     assert TARGET_FOLDERS.isdisjoint(ambiguous_names)

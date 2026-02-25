@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     name: update changelog and create release
@@ -15,14 +19,18 @@ jobs:
       pull-requests: read
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: setup uv
+        uses: astral-sh/setup-uv@v5
 
       - name: resolve release tag
         id: version
         run: |
-          version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n 1)"
+          # Extract version from pyproject.toml
+          version=$(uv run -q python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           tag="v${version}"
           if git rev-parse "${tag}" >/dev/null 2>&1; then
             should_release=false
