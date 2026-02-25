@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-25
+
+### Changed
+
+- Migrate from MkDocs to Zensical and update CI actions
+- Update documentation to reflect current project features
+- Update site_url and social links
+
+### Fixed
+
+- Format markdown
+
+### Removed
+
+- Markdown file
+
 ## [0.3.0] - 2026-02-25
 
 ### Added
@@ -17,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement .fsweepignore support and update tests
 - Bump version to 0.3.0
 - Setup MkDocs documentation and modernize CI workflows
+- Prepare for v0.3.0
 
 ### Fixed
 
@@ -75,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove pytest-cov from dev dependencies
 - Remove ty prek
 
+[0.3.1]: https://github.com/drew-simmons/fsweep/compare/v0.3.0..v0.3.1
 [0.3.0]: https://github.com/drew-simmons/fsweep/compare/v0.2.0..v0.3.0
 [0.2.0]: https://github.com/drew-simmons/fsweep/compare/v0.1.0..v0.2.0
 [0.1.0]: https://github.com/drew-simmons/fsweep/tree/v0.1.0
